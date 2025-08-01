@@ -1,0 +1,52 @@
+; setting the buffer to the address 10
+ldi    %rda $10  ; address is 10
+setbuf %rda      ; updating the buffer
+
+; the frame count
+ldi %rdc $0
+
+; iterating over the pixels
+ldi %rda $1
+ldi %rdb $10
+.loop:
+    ; using rdb as the pointer and placing rda into it
+    strp [%rdb] %rda
+
+    ; incrementing the current value in rda by a constant
+    ldrar %rda
+    ldial $1
+    add
+    movreg %rda
+
+    ; incrementing the current pixel index
+    ldral %rdb
+    inc
+    movreg %rdb
+
+    ; checking bounds
+    ldial $10250
+    ldrar %rdb
+    cmpeq
+    jnz #loop
+
+    ; checking the frame count currently
+    ldral %rdc
+    inc
+    movreg %rdc
+
+    ldi %rdb $10  ; resetting the pixel number
+    ldial $1000
+    ldrar %rdc
+    cmpeq
+    jiz #exit
+
+    ; waiting for the vsync signal to sync each iteration with the screen
+    .vsync_wait1:
+        sync
+        jnz #vsync_wait1
+
+    jmp #loop
+
+.exit:
+    halt
+

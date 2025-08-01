@@ -1,0 +1,101 @@
+; auto playing pong game (no user input system has been added yet to the emulator)
+
+; setting the screen buffer to address #10
+ldi %rda $10
+setbuf %rda
+
+; initializing variables (only registers really should be needed for such a simple game)
+; !important! the balls position is shifted to the right to half it to provide better detail in terms of velocity
+ldi %rdl $128 ; ball x position
+ldi %rdk $80  ; ball y position
+ldi %rdj $1   ; boolean for positive(1)/negative(0) for the x
+ldi %rdi $1   ; boolean for positive(1)/negative(0) for the y
+ldi %rdf $3   ; velocity (z)
+ldi %rde $2   ; velocity (y)
+
+ldi %rdh $40  ; left paddle position
+ldi %rdg $40  ; right paddle position
+
+jmp #start    ; jumping to the actual start of the program
+
+
+; a function to render each paddle
+.render_paddles:
+    ; the paddle position registers are already known so no parameters are needed
+    ldral %rdh
+    ldiar $3
+    sub
+    movreg %rda  ; the position minus three (left)
+
+    ldral %rdg
+    sub          ; 3 is already in alu right from the previous operation
+    movreg %rdc  ; the position minus three (right)
+
+    ldi %rdb $0
+    .render_loop:
+        ; plotting the pixel for the left and right paddle
+
+        ; counting the number of iterations
+        ldral %rdb
+        inc
+        movreg %rdb
+
+        ; incrementing the position being rendered for the paddle
+        ldral %rda
+        inc
+        movreg %rda
+            ; right paddle (same code as the left)
+        ldral %rdc
+        inc
+        movreg %rdc
+
+        ; iterating until equal to 7
+        ldral %rdb
+        ldiar $7
+        cmpeq
+        jnz #render_loop
+
+    ret
+
+
+; a function to render the paddles
+.render_ball:
+    ; no arguments are needed for the same reason as before
+    ; bit-shifting both the x and y positions to get the corrected value
+    ldiar $1    ; bit-shifting by 1 (aka floor div by 2)
+    ldral %rdl  ; x position
+    right
+    movreg %rda ; x position is in rda
+
+    ldral %rdk  ; y position
+    right
+    movreg %rdb ; y position is in rdb
+
+    ; plotting the pixel
+
+    ret
+
+
+; the start of the actual pong game
+.start:
+
+    ; the game loop which in this case will end up just running forever
+    .game_loop:
+        ; physics stuff
+        ;
+
+        ; rendering the paddles via the function (no args are needed sense the registers for paddle position are known)
+        call #render_paddles
+        call #render_ball  ; rendering the ball (using basic fixed point notation via a right bitshift)
+
+        ; syncing the game with the display
+        .vsync_wait1:
+            sync
+            jnz #vsync_wait1
+
+        ; looping through again
+        jmp game_loop
+
+; the exit is here (incase the assembler would get angry), but it won't be reached sense the pong game is infinite
+.exit:
+    halt

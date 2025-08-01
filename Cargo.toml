@@ -1,0 +1,17 @@
+[package]
+name = "AssemblerV2"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+libc = "1.0.0-alpha.1"
+crossbeam = "0.8.4"
+
+[profile.release]
+opt-level = 3           # or 3 for highest speed
+lto = "fat"                # Enables Link Time Optimization (slower compile, faster binary)
+codegen-units = 1        # Forces single-threaded codegen; helps LTO do more aggressive inlining
+debug = 0            # Strip debug info for smaller, faster binary
+panic = "abort"          # Smaller binary; no stack unwinding
+overflow-checks = false  # Removes integer overflow checks (unsafe in debug, safe in release)
+strip = true             # Strip all symbol/debug data
