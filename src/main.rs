@@ -191,10 +191,12 @@ static INSTRUCTION_REFERENCE: [(u8, &str, ArgType, ArgType, ArgType); 79] = [
 pub fn get_instruction (token_line: &Vec <String>, instruction_size_table: &[u8]) -> (u32, u8) {
     if token_line.is_empty() { return (0, 0); }  // nop instruction for null lines (shouldn't happen)
     let op_code = token_line[0].as_str();
+    //println!("op_code: {}", op_code);
     let mut op_code_byte = None;
     let mut index = 0;  // index 0 maps to nop so if none are found it should default back just fine
     for (i, (byte_code, instruction, _arg_1, _arg_2, _arg_3)) in INSTRUCTION_REFERENCE.iter().enumerate() {
         if *instruction == op_code {
+            //println!("op_code: {}, byte_code: {:x}, instruction: {}", op_code, byte_code, instruction);
             op_code_byte = Some(*byte_code);
             index = i;
             break;
@@ -208,6 +210,7 @@ pub fn get_instruction (token_line: &Vec <String>, instruction_size_table: &[u8]
         return ((op_code_byte as u32) << 24, size);  }  // 1 byte instruction, no operands
     // going through the operands
     let shifted_byte_code = (op_code_byte as u32) << 24;
+    //println!("shifted op)code: {:x}", shifted_byte_code);
     let (_, _, arg_1, arg_2, arg_3) = INSTRUCTION_REFERENCE[index].clone();
     let byte_code_form = match (arg_1, arg_2, arg_3) {
         (ArgType::Register, ArgType::Register                             , ArgType::Null) => {  // + 1 byte     <inst> <%><reg><,> <%><reg>
@@ -344,6 +347,7 @@ pub fn get_macros (tokens: &mut Vec<Vec<String>>, instruction_size_table: &[u8],
     }
     
     // returns a vector with each line containing (optionally) the name the header (defined or jumping to) and the type of jump
+    //println!("pre jumping: {:?}", tokens);
     let _jumps = clear_extra_info (tokens, macro_lines, macros, instruction_size_table);
     // using the jump information finish filling those sections out in the byte creation part to ensure proper byte alignment (the hard part)
     // the jump filling is being done in clear_extra_info
@@ -490,7 +494,7 @@ pub fn generate_instructions (
             argument_names: vec![String::from("register")],
             expansion: vec![
                 vec![String::from("ldral"), String::from("register")],
-                vec![String::from("ldiar"), String::from("0xFFFF")],
+                vec![String::from("ldiar"), String::from("65535")],
                 vec![String::from("xor")]
             ],
         },
@@ -506,6 +510,7 @@ pub fn generate_instructions (
         }
     ];
     
+    //println!("Pre macros: {:?}", tokens);
     get_macros(tokens, instruction_size_table, macros);
     println!("After macro expansion: {:?}", tokens);
     
@@ -516,7 +521,7 @@ pub fn generate_instructions (
     for token_line in tokens {
         let (instruction, instruction_size) = get_instruction(token_line, instruction_size_table);
         if token_line.contains(&String::from("halt")) {  haulted = true;  }
-        //println!("{:x}; {:x}", instruction, instruction_size);
+        //println!("{:x}; {:x}, {:?}", instruction, instruction_size, token_line);
         
         // size = 0 is 1 byte, size = 3 is 4 bytes (programmer indexes.........)
         //println!("Line count: {} Byte count: {} Instruction: hex{:x}({}) {:?}", line_count, instruction_byte, instruction, instruction_size, token_line);
@@ -530,6 +535,7 @@ pub fn generate_instructions (
         line_count += 1;
         println!();
     } assert!(haulted, "The program requires a hault instruction to ensure it won't overflow the ROM.");
+    println!("Bytes: {}", instruction_byte);
 }
 fn main() {
     //println!("Starting high-priority emulator");
@@ -558,71 +564,7 @@ pub fn emulation_loop() {
         vec![")"]
     ];
     
-    let code = vec![
-        String::from("ldi    %rda, $5 ;"),
-        String::from("ldiar  $5       ;"),
-        String::from("ldral  %rda     ;"),
-        String::from("add             ;"),
-        String::from("movreg %rdb     ;"),
-        String::from("jnz    #20      ;"),
-        String::from("nop             ;"),
-        String::from("macro! increment (%reg) {             ;"),
-        String::from("    ldral %reg             ;"),
-        String::from("    inc             ;"),
-        String::from("    movreg %reg             ;"),
-        String::from("}             ;"),
-        String::from("nop             ;"),
-        String::from("nop             ;"),
-        String::from("macro! double (%reg) {"),
-        String::from("    ldral  %reg     ;"),
-        String::from("    ldrar  %reg     ;"),
-        String::from("    add             ;"),
-        String::from("    movreg %reg     ;"),
-        String::from("    inc %reg     ;"),
-        String::from("    nop             ;"),
-        String::from("}               ;"),
-        String::from("nop             ;"),
-        String::from("nop             ;"),
-        String::from("nop             ;"),
-        String::from("double %rda     ;"),
-        String::from("nop             ;"),
-        String::from("ldral %rdb      ;"),
-        String::from("ldrar %rdb      ;"),
-        String::from("add             ;"),
-        String::from("movram #10      ;"),
-        String::from("nop             ;"),
-        String::from("cycles %rdd     ;"),
-        String::from("                ;"),
-        String::from("                ;"),
-        String::from("ldi %rda, $5    ;"),
-        String::from(".label:         ;"),
-        String::from("    ldral %rda  ;"),
-        String::from("    ldiar $1    ;"),
-        String::from("    sub         ;"),
-        String::from("    movreg %rda ;"),
-        String::from("    jnz label   ;"),
-        String::from("                ;"),
-        String::from("nop             ;"),
-        String::from("ldi %rdd $15    ;"),
-        String::from("double %rdd     ;"),
-        String::from("jmp next        ;"),
-        String::from("nop             ;"),
-        String::from("nop             ;"),
-        String::from("ldiar $100      ;"),
-        String::from(".function_label:;"),
-        String::from("    ldi %rdf $10    ;"),
-        String::from("    nop             ;"),
-        String::from("    ret             ;"),
-        String::from("nop             ;"),
-        String::from("nop             ;"),
-        String::from("ldiar $100      ;"),
-        String::from(".next:          ;"),
-        String::from("call function_label;"),
-        String::from("nop             ;"),
-        String::from("halt            ;"),
-    ];
-
-    let code = std::fs::read_to_string("/Users/Andrew/Desktop/Programing/Rust/AssemblerV2/scripts/pong.asm2")
+    let code = std::fs::read_to_string("/Users/Andrew/Desktop/Programing/Rust/AssemblerV2/scripts/rng_test.asm2")
         .unwrap().lines().map(|s| s.to_string()).collect();
     println!("{:?}", code);
     
@@ -770,8 +712,8 @@ pub fn emulation_loop() {
     // the current value here is just the default, an instruction can change it to allow different locations and dooble buffering
     let mut screen_buffer_pointer = 55295;  // max ram address - screen_area
     
-    ram[screen_buffer_pointer] = 0b10000_000000_00000; ram[screen_buffer_pointer + 2] = 0b00000_100000_00000;
-    ram[screen_buffer_pointer + 4] = 0b00000_000000_10000; ram[screen_buffer_pointer + 6] = 0b11111_000000_00000;
+    //ram[screen_buffer_pointer] = 0b10000_000000_00000; ram[screen_buffer_pointer + 2] = 0b00000_100000_00000;
+    //ram[screen_buffer_pointer + 4] = 0b00000_000000_10000; ram[screen_buffer_pointer + 6] = 0b11111_000000_00000;
     
     // this is set by the screen on the start of a frame
     // this is only reset upon an instruction reading its value
@@ -964,9 +906,9 @@ pub fn parse_instruction (
         0x1F => {  registers[18] = registers[16].rotate_right(registers[17] as u32)  },  // rotr
         
         // basic memory
-        0x21 => {  registers[(operands[0] >> 4) as usize] = registers[(operands[0] & 0x0F) as usize]  },  // mov
+        0x21 => {  registers[(operands[0] & 0x0F) as usize] = registers[(operands[0] >> 4) as usize]  },  // mov
         0x22 => {  ram[(((operands[1] as u16) << 8) | (operands[2] as u16)) as usize] = registers[(operands[0] >> 4) as usize]  },  // str
-        0x23 => {  registers[(operands[1] >> 4) as usize] = ram[(((operands[0] as u16) << 8) | (operands[1] as u16)) as usize]  },  // grab
+        0x23 => {  registers[(operands[2] >> 4) as usize] = ram[(((operands[0] as u16) << 8) | (operands[1] as u16)) as usize]  },  // grab
         0x24 => {  registers[17] = registers[(operands[0] >> 4) as usize]  },  // ldrar
         0x25 => {  registers[16] = registers[(operands[0] >> 4) as usize]  },  // ldral
         0x26 => {  registers[(operands[0] >> 4) as usize] = registers[18]  },  // movreg

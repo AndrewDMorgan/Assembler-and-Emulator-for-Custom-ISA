@@ -1,8 +1,11 @@
 ; auto playing pong game (no user input system has been added yet to the emulator)
 
-; setting the screen buffer to address #10
-ldi %rda $10
+; setting the screen buffer to address #100
+ldi %rda $100
 setbuf %rda
+; updating the value in memory so that it's known (for the current buffer)
+ldi %rda $15000   ; 15,000 and 100 are the two locations for the buffer
+str %rda #0
 
 ; initializing variables (only registers really should be needed for such a simple game)
 ; !important! the balls position is shifted to the right to half it to provide better detail in terms of velocity
@@ -10,7 +13,7 @@ ldi %rdl $128 ; ball x position
 ldi %rdk $80  ; ball y position
 ldi %rdj $1   ; boolean for positive(1)/negative(0) for the x
 ldi %rdi $1   ; boolean for positive(1)/negative(0) for the y
-ldi %rdf $3   ; velocity (z)
+ldi %rdf $4   ; velocity (x)
 ldi %rde $2   ; velocity (y)
 
 ldi %rdh $40  ; left paddle position
@@ -34,6 +37,35 @@ jmp #start    ; jumping to the actual start of the program
     ldi %rdb $0
     .render_loop:
         ; plotting the pixel for the left and right paddle
+        ; x_pos + y_pos*128 + buffer_pos
+        ldial $128
+        ldrar %rda
+        mult
+        movreg %acc
+        grab #0 %rdd
+        ldral %rdd
+        ldrar %acc
+        add
+        movreg %acc
+        ldi %rdd $49152  ; red
+        strp [%acc] %rdd
+        ; x pos is 0 so no additional math is needed for the left paddle
+
+        ldial $128
+        ldrar %rdc
+        mult
+        movreg %acc
+        ldial $127
+        ldrar %acc
+        add
+        movreg %acc
+        grab #0 %rdd
+        ldral %rdd
+        ldrar %acc
+        add
+        movreg %acc
+        ldi %rdd $1664  ; green
+        strp [%acc] %rdd
 
         ; counting the number of iterations
         ldral %rdb
@@ -72,7 +104,139 @@ jmp #start    ; jumping to the actual start of the program
     movreg %rdb ; y position is in rdb
 
     ; plotting the pixel
+    ldial $128
+    ldrar %rdb
+    mult
+    movreg %acc
+    ldral %rda
+    ldrar %acc
+    add
+    movreg %acc
+    grab #0 %rdd
+    ldral %rdd
+    ldrar %acc
+    add
+    movreg %acc
+    ldi %rdd $24  ; blue
+    strp [%acc] %rdd
 
+    ret
+
+
+; a function for bal physics
+.physics:
+    ; finding the new x position for the ball
+    ldral %rdj
+    cmp
+    ldral %rdl  ; pre loading the alu input registers
+    ldrar %rdf
+    jnz #positive_x
+
+    ; the acc register will store the new x position
+    sub  ; this would be the negative x direction
+    movreg %acc
+    jic #negate_x  ; checking if the value is zero or overflowing
+    jiz #negate_x  ; sense the paddles are running automatically, there would never be a lose condition so no proper collision is needed here
+    jmp #x_vel_finish
+    .positive_x:
+        add
+        movreg %acc
+        ldral %acc
+        ldiar $253
+        cmpg
+        jiz #negate_x  ; colliding with the right paddle (the paddle is auto moved so no need to do proper collision detection)
+  .x_vel_finish:
+    mov %acc %rdl  ; the movement was valid
+    jmp #finished_x_movement
+    .negate_x:  ; the ball collided or went off the screen
+        ldial $1
+        ldrar %rdj
+        sub
+        movreg %rdj
+  .finished_x_movement:
+
+    ; finding the new x position for the ball
+    ldral %rdi
+    cmp
+    ldral %rdk  ; pre loading the alu input registers
+    ldrar %rde
+    jnz #positive_y
+
+    ; the acc register will store the new x position
+    sub  ; this would be the negative x direction
+    movreg %acc
+    jic #negate_y  ; checking if the value is zero or overflowing
+    jmp #y_vel_finish
+    .positive_y:
+        add
+        movreg %acc
+        ldral %acc
+        ldiar $158
+        cmpg
+        jiz #negate_y  ; colliding with the right paddle (the paddle is auto moved so no need to do proper collision detection)
+  .y_vel_finish:
+    mov %acc %rdk  ; the movement was valid
+    ret
+    .negate_y:  ; the ball collided or went off the screen
+        ldial $1
+        ldrar %rdi
+        sub
+        movreg %rdi
+    ret
+
+
+; a function to move the paddles
+.move_paddles:
+    ; auto moving the paddles
+    ldral %rdk
+    ldiar $1
+    right
+    movreg %acc  ; this will be the targeted position
+    ldral %rdj
+    cmp
+    jnz #right_paddle_movement
+
+    ; left paddle code goes here
+    ;move_paddle %rdh
+    ; getting pos + 1
+    ldral %rdh
+    inc
+    movreg %rda
+
+    ; getting pos - 1
+    ldral %rdh
+    dec
+    movreg %rdb
+
+    ; setting the zero flag based on the balls height
+    ldral %rdh
+    ldrar %acc
+    cmpg
+    ldral %rdb
+    ldrar %rda
+    memcmp     ; rdb if paddle>ball; else rda
+    movreg %rdh
+    ret
+    .right_paddle_movement:
+        ;move_paddle %rdg
+        ; getting pos + 1
+        ldral %rdg
+        inc
+        movreg %rda
+
+        ; getting pos - 1
+        ldral %rdg
+        dec
+        movreg %rdb
+
+        ; setting the zero flag based on the balls height
+        ldral %rdg
+        ldrar %acc
+        cmpg
+        ldral %rdb
+        ldrar %rda
+        memcmp     ; rdb if paddle>ball; else rda
+        movreg %rdg
     ret
 
 
@@ -81,17 +245,53 @@ jmp #start    ; jumping to the actual start of the program
 
     ; the game loop which in this case will end up just running forever
     .game_loop:
+        ; swapping the buffers (double buffering)
+        ; 100 or 15,000
+        ; 15,000 - buff (0 or 14,900) + 100
+        ldial $15000
+        grab #0 %rda
+        setbuf %rda  ; replacing with the original (they should now be swapped)
+        ldrar %rda
+        sub
+        movreg %rda
+        ldral %rda
+        ldiar $100
+        add
+        movram #0
+
+        ; clearing the current buffer
+        ; just doing a basic loop (too lazy to do it properly)
+        ldi %rda $0
+        ldi %rdb $0  ; the color that's replacing everything
+        .clear_loop:
+            grab #0 %acc
+            ldral %acc
+            ldrar %rda
+            add
+            movreg %acc
+            strp [%acc] %rdb
+
+            ; checking bounds (looping over every pixel)
+            ldral %rda
+            inc
+            movreg %rda  ; incrementing the pixel index
+            ldral %rda
+            ldiar $10250
+            cmpeq
+            jnz #clear_loop
+
         ; physics stuff
-        ;
+        call #physics
+        call #move_paddles
 
         ; rendering the paddles via the function (no args are needed sense the registers for paddle position are known)
         call #render_paddles
         call #render_ball  ; rendering the ball (using basic fixed point notation via a right bitshift)
 
         ; syncing the game with the display
-        .vsync_wait1:
+        .vsync_wait:
             sync
-            jnz #vsync_wait1
+            jnz #vsync_wait
 
         ; looping through again
         jmp game_loop

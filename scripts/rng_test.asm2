@@ -1,0 +1,48 @@
+ldi %rda $0
+setbuf %rda
+jmp #start
+
+; returns the random value in %acc    uses the cycle count as the seed
+.rand:
+    cycles %acc          ; load seed
+    ldral %acc
+    ldiar $149
+    add     ; making sure the value isn't near zero as that can cause issues with the randomness
+    movreg %acc
+    ldiar $251      ; a = 1664525
+    mult
+    movreg %acc
+    ldral %acc
+    ldiar $6789   ; c = 1013904223   fixed the numbers.... this is a 16bit system not 32
+    add
+    movreg %acc         ; update seed
+    ret
+
+
+.start:
+    .vsync_wait:
+        sync
+        jnz #vsync_wait
+
+    ldi %rda $0
+    .loop:
+        call #rand
+
+        ; plotting the pixel
+        strp [%rda] %acc
+
+        ldral %rda
+        inc
+        movreg %rda
+
+        ldral %rda
+        ldiar $10250
+        cmpeq
+        jnz #loop
+
+    .vsync_wait2:
+        sync
+        jnz #vsync_wait2
+
+    halt
+

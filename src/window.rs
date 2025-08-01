@@ -1,57 +1,6 @@
-pub static CLEAR: &str = "\x1b[0m";
+
 pub static SHOW_CURSOR: &str = "\x1b[?25h";
 pub static HIDE_CURSOR: &str = "\x1b[?25l";
-
-// * color, modifiers, is_background
-pub static EMPTY_MODIFIER_REFERENCE: &[&str] = &[];  // making a default static type is annoying
-
-pub static BLACK:      (Option <&str>, &[&str], bool) = (Some("30"), &[], false);
-pub static RED:        (Option <&str>, &[&str], bool) = (Some("31"), &[], false);
-pub static GREEN:      (Option <&str>, &[&str], bool) = (Some("32"), &[], false);
-pub static YELLOW:     (Option <&str>, &[&str], bool) = (Some("33"), &[], false);
-pub static BLUE:       (Option <&str>, &[&str], bool) = (Some("34"), &[], false);
-pub static MAGENTA:    (Option <&str>, &[&str], bool) = (Some("35"), &[], false);
-pub static CYAN:       (Option <&str>, &[&str], bool) = (Some("36"), &[], false);
-pub static WHITE:      (Option <&str>, &[&str], bool) = (Some("37"), &[], false);
-pub static DEFAULT:    (Option <&str>, &[&str], bool) = (Some("39"), &[], false);
-
-pub static BRIGHT_BLACK:   (Option <&str>, &[&str], bool) = (Some("90"), &[], false );
-pub static BRIGHT_RED:     (Option <&str>, &[&str], bool) = (Some("91"), &[], false );
-pub static BRIGHT_GREEN:   (Option <&str>, &[&str], bool) = (Some("92"), &[], false );
-pub static BRIGHT_YELLOW:  (Option <&str>, &[&str], bool) = (Some("93"), &[], false );
-pub static BRIGHT_BLUE:    (Option <&str>, &[&str], bool) = (Some("94"), &[], false );
-pub static BRIGHT_MAGENTA: (Option <&str>, &[&str], bool) = (Some("95"), &[], false );
-pub static BRIGHT_CYAN:    (Option <&str>, &[&str], bool) = (Some("96"), &[], false );
-pub static BRIGHT_WHITE:   (Option <&str>, &[&str], bool) = (Some("97"), &[], false );
-pub static BRIGHT_DEFAULT: (Option <&str>, &[&str], bool) = (Some("99"), &[], false );
-
-pub static ON_BLACK:   (Option <&str>, &[&str], bool) = (Some("100"), &[], true );
-pub static ON_RED:     (Option <&str>, &[&str], bool) = (Some("101"), &[], true );
-pub static ON_GREEN:   (Option <&str>, &[&str], bool) = (Some("102"), &[], true );
-pub static ON_YELLOW:  (Option <&str>, &[&str], bool) = (Some("103"), &[], true );
-pub static ON_BLUE:    (Option <&str>, &[&str], bool) = (Some("104"), &[], true );
-pub static ON_MAGENTA: (Option <&str>, &[&str], bool) = (Some("105"), &[], true );
-pub static ON_CYAN:    (Option <&str>, &[&str], bool) = (Some("106"), &[], true );
-pub static ON_WHITE:   (Option <&str>, &[&str], bool) = (Some("107"), &[], true );
-pub static ON_DEFAULT: (Option <&str>, &[&str], bool) = (Some("109"), &[], true );
-
-pub static ON_BRIGHT_BLACK:   (Option <&str>, &[&str], bool) = (Some("40"), &[], true );
-pub static ON_BRIGHT_RED:     (Option <&str>, &[&str], bool) = (Some("41"), &[], true );
-pub static ON_BRIGHT_GREEN:   (Option <&str>, &[&str], bool) = (Some("42"), &[], true );
-pub static ON_BRIGHT_YELLOW:  (Option <&str>, &[&str], bool) = (Some("43"), &[], true );
-pub static ON_BRIGHT_BLUE:    (Option <&str>, &[&str], bool) = (Some("44"), &[], true );
-pub static ON_BRIGHT_MAGENTA: (Option <&str>, &[&str], bool) = (Some("45"), &[], true );
-pub static ON_BRIGHT_CYAN:    (Option <&str>, &[&str], bool) = (Some("46"), &[], true );
-pub static ON_BRIGHT_WHITE:   (Option <&str>, &[&str], bool) = (Some("47"), &[], true );
-pub static ON_BRIGHT_DEFAULT: (Option <&str>, &[&str], bool) = (Some("49"), &[], true );
-
-pub static BOLD:      (Option <&str>, &[&str], bool) = (None    , &["1"], false);
-pub static DIM:       (Option <&str>, &[&str], bool) = (None    , &["2"], false);
-pub static ITALIC:    (Option <&str>, &[&str], bool) = (None    , &["3"], false);
-pub static UNDERLINE: (Option <&str>, &[&str], bool) = (None    , &["4"], false);
-pub static BLINK:     (Option <&str>, &[&str], bool) = (None    , &["5"], false);
-pub static REVERSE:   (Option <&str>, &[&str], bool) = (None    , &["7"], false);
-pub static HIDE:      (Option <&str>, &[&str], bool) = (None    , &["8"], false);
 
 
 // Wrapper struct for the raw pointer
