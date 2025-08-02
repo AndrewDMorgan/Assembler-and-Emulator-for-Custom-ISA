@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 libc = "1.0.0-alpha.1"
 crossbeam = "0.8.4"
+crossterm = "0.29.0"
 
 [profile.release]
 opt-level = 3           # or 3 for highest speed

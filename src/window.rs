@@ -16,7 +16,7 @@ impl<T> RawPtr<T> {
         RawPtr(ptr)
     }
     
-    fn get(&self) -> *mut T {
+    pub(crate) fn get(&self) -> *mut T {
         self.0
     }
 }

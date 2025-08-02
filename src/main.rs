@@ -1,26 +1,22 @@
 // ! 18.0505mhz for the average clock speed (about)  or about 55.44ns
+// the keyboard supports single-byte ascii character inputs
+// the screen runs at 24 hertz, using proper scan lines and blanking sequences and timing
 
 /*
 TODO's:
 
     Add the missing functionality for the few specific commands missing it
-    Add better debug support (maybe also some debug asserts to ensure safe assembly code)\
+    Add better debug support (maybe also some debug asserts to ensure safe assembly code)
     Add support for variable definitions (using @0x01 Testing which would be a label referring to the address; optional constant afterwards)
     Add support for the missing argument types combination
     
-    Add a screen; background thread which runs at a specified rate similar to a real vgs monitor
-        Use ascii rendering to the terminal to simplify things; zoom out and fullscreen the terminal for complete resolution
-    
-    Make a connection to the cpu input register that is connected to a keyboard (and possibly mouse) to allow for games and interactions
-        Maybe use a specific protocol for requesting and receiving events and specific info like mouse position or something like that
-
 
 */
 
 use crossbeam;
 
 mod window;
-
+mod keyboard;
 
 macro_rules! debug_println {
     ($($arg:tt)*) => (if ::std::cfg!(debug_assertions) { ::std::println!($($arg)*); })
@@ -227,7 +223,10 @@ pub fn get_instruction (token_line: &Vec <String>, instruction_size_table: &[u8]
         },
         (ArgType::Number|ArgType::Address|ArgType::Line, ArgType::Null    , ArgType::Null) => {  // + 2 bytes    <inst> <$|#><value>
             shifted_byte_code | token_line[1].parse::<u32>().unwrap() << 8
-        },  // todo!!!! add the others    // reg, reg, num combo is missing
+        },  // todo!!!! add the others    // reg, reg, num combo is missing    added it, not sure if it works yet though
+        (ArgType::Register, ArgType::Register, ArgType::Number|ArgType::Address) => {
+            shifted_byte_code | register_as_byte(&token_line[1]) << 20 | register_as_byte(&token_line[2]) << 16 | token_line[3].parse::<u32>().unwrap()
+        },
         _ => 0  // nop
     };
     //println!("Info:: {:x}/{}  / {}     code: {:x}({})/{:x} size: {}", byte_code_form, size, index, op_code_byte, op_code, shifted_byte_code, instruction_size_table[op_code_byte as usize]);
@@ -564,7 +563,7 @@ pub fn emulation_loop() {
         vec![")"]
     ];
     
-    let code = std::fs::read_to_string("/Users/Andrew/Desktop/Programing/Rust/AssemblerV2/scripts/rng_test.asm2")
+    let code = std::fs::read_to_string("/Users/Andrew/Desktop/Programing/Rust/AssemblerV2/scripts/pong.asm2")
         .unwrap().lines().map(|s| s.to_string()).collect();
     println!("{:?}", code);
     
@@ -577,7 +576,7 @@ pub fn emulation_loop() {
     // assembling the instructions
     
     // lookup based on the value of the first byte (first 8 - bits)
-    // that will determine the instructions size in bytes (to allow correct movement to the following instructions)
+    // that will determine the instruction's size in bytes (to allow correct movement to the following instructions)
     // (default is 1 so that NOP still increment the counter and not stall)
     let mut instruction_size_table: [u8; u8::MAX as usize + 1] = [1u8; u8::MAX as usize+1];  // plus one because the size is one larger than the index
     
@@ -740,6 +739,16 @@ pub fn emulation_loop() {
     //std::thread::sleep(std::time::Duration::from_millis(10000));
     
     
+    // another background thread for keyboard input
+    let registers_pointer = window::RawPtr::new(&mut registers as *mut u16);
+    let (keyboard_sender, keyboard_receiver) = crossbeam::channel::bounded::<bool>(1);
+    // the os gets to clean this one up on completion
+    let _keyboard_thread = std::thread::spawn(move || {
+        crossterm::terminal::enable_raw_mode().unwrap();
+        keyboard::keyboard_handler(keyboard_receiver, registers_pointer);
+    });
+    
+    
     // going through the program
     let mut cycle_count = 0;
     let mut instruction_count: u64 = 0;
@@ -820,8 +829,11 @@ pub fn emulation_loop() {
     println!("Elapsed time: {}   avg. {}/{} over {} cycles and {} instructions", program_end - program_start.0, program_start.1.elapsed().as_nanos() as f64 / cycle_count as f64, (program_end - program_start.0) as f64 / cycle_count as f64, cycle_count, instruction_count);
     println!("Debug:  registers: {:?}    ram (first 40bytes/20 addresses): {:?}", registers, &ram[0..20]);
     
+    keyboard_sender.send(true).unwrap();
     sender.send(true).unwrap();
-    thread.join().unwrap();  // by joining and waiting, this ensure there aren't any dangling references when this function goes out of scope
+    thread.join().unwrap();  // by joining and waiting, this ensures there aren't any dangling references when this function goes out of scope
+    crossterm::terminal::disable_raw_mode().unwrap();
+    // not joining the keyboard thread so this thread isn't blocked (any null pointers wouldn't have much time to really do anything
 }
 
 static FRAME_TIME: u64 = 59;  // 214 - 50;  targeting about 16.776 mhz which is the speed of one of the processors in the game boy advanced
@@ -987,15 +999,22 @@ pub fn parse_instruction (
                 // copying a slice [x1..x2] of ram to another section starting at x3 going to < x3+len
                 // as long as the programmer didn't write an assembly script that accesses out of bounds memory, there should be no issues
                 // kinda a big foot-gun, but whatever, it's assembly after all so nothing's safe and this should ensure good performance
+                // what are the odds this even works........ it's definitely gonna cause issues
                 std::ptr::copy(
-                    ram.as_ptr().offset(0),  // the pointer to the source in ram
-                    ram.as_mut_ptr().offset(0),  // the pointer to the destination in ram
+                    ram.as_ptr().offset(registers[(operands[0] >> 4) as usize] as isize),  // the pointer to the source in ram
+                    ram.as_mut_ptr().offset(registers[(operands[0] & 0x0F) as usize] as isize),  // the pointer to the destination in ram
                     operands[1] as usize  // the specified size of the chunk to copy
                 );
             }
         },  // memcpy
-        0x7E => {  *target += FRAME_TIME; *i+=1; todo!()  },  // ramswp
-        
+        0x7E => {
+            *target += FRAME_TIME; *i+=1;
+            let i1 = registers[(operands[0] >> 4) as usize] as usize;
+            let i2 = registers[(operands[0] & 0x0F) as usize] as usize;
+            let r1 = ram[i1];
+            ram[i1] = ram[i2];
+            ram[i2] = r1;
+        },  // ramswp
         0x81 => {(registers[18], *carry) = registers[16].overflowing_mul(registers[17])},  // mult
         0x82 => {*target += FRAME_TIME; *i+=1; registers[18] = registers[16].checked_div(registers[17]).unwrap_or(0)},  // div
         
