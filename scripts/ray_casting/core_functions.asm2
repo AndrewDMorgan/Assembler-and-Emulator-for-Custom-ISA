@@ -1,0 +1,39 @@
+; basic math stuff ig
+
+
+; does addition while accounting for the sign bit
+; %rda is the input
+; %rdb is the other value being added
+; uses %acc (reserved for intermediate values within a sole scope only)
+; %rda is also the output from this function
+; uses rda, rdb, and acc
+.signed_addition:
+    ldral %rda
+    ldiar $1    ; 0b0000000000000001
+    and         ; isolating the sign bit
+    movreg %acc ; the sign bit is in %acc
+    ldral %acc  ; the sign bit is in alu left
+    cmp         ; setting the zero flag to the sign bit
+    ldral %rda  ; alu left has the original value
+    ldiar $1    ; removing the sign bit (getting the raw value)
+    right       ; shifting the value (doesn't change the zero flag, but clears the sign bit)
+    movreg %rda ; the real first input value
+    ldrar %rda  ; loading that value into alu left
+    ldral %rdb  ; the second value  :  the first value is in alu right
+    jnz #signed_addition_negative_sign
+
+    ; positive sign (the first bit is 0)
+    add         ; adding (the value is positive)
+    movreg %rda
+    ret
+
+  .signed_addition_negative_sign:
+    sub         ; subtracting (second - first   /   -first + second)
+    jic #set_zero_for_signed_addition
+    movreg %rda
+    ret
+
+  .set_zero_for_signed_addition:
+    clr %rda    ; incase the value is out of bounds or something
+    ret
+

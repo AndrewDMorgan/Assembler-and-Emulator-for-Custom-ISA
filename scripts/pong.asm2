@@ -32,7 +32,7 @@ jmp #start    ; jumping to the actual start of the program
     sub          ; 3 is already in alu right from the previous operation
     movreg %rdc  ; the position minus three (right)
 
-    ldi %rdb $0
+    clr %rdb
     .render_loop:
         ; plotting the pixel for the left and right paddle
         ; x_pos + y_pos*128 + buffer_pos
@@ -153,6 +153,7 @@ jmp #start    ; jumping to the actual start of the program
         ldral %rdh
         ldiar $5
         sub
+        jic #negate_x   ; incase the ball is a corner shot....  (that worked.... it was just that easy)
         movreg %acc
         ldral %acc
         ldiar $1
@@ -267,8 +268,8 @@ jmp #start    ; jumping to the actual start of the program
 
         ; clearing the current buffer
         ; just doing a basic loop (too lazy to do it properly)
-        ldi %rda $0
-        ldi %rdb $0  ; the color that's replacing everything
+        clr %rda
+        clr %rdb  ; the color that's replacing everything (0 aka black)
         .clear_loop:
             grab #0 %acc
             ldral %acc

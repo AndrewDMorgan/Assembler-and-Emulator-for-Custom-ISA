@@ -1,0 +1,96 @@
+; basic rendering things (like columns and stuff; maybe textures)
+
+
+; renderings a column from the middle of the screen with a given size
+; uses rdl, rdk, rdj, rda, rdb, acc
+.render_casted_column:
+    ; the first value in the stack is the x position
+    ; the second value in the stack is the size
+    ; the third value in the stack is the offset (first bit represents the sign -> +/-)
+    ; stack: [....x, size, offset]
+    pop %acc       ; saving the return address
+    pop %rdl       ; x position (x-pixel coord)
+    pop %rdk       ; size
+    pop %rda       ; offset -- will be an input into the signed addition function
+    psh %acc       ; restoring the return address
+    ldi %rdb $40   ; the generic offset (center of screen
+    call #signed_addition  ; %rda will contain the updated value
+    ldral %rdk
+    ldiar $1
+    right          ; halving the value
+    movreg %acc
+    ldral %rda
+    ldrar %acc
+    sub            ; column_center(rda) - size(rdk) / 2(>>1)
+    movreg %rdj    ; the actual y coord to start at (incase of half blocks or something ig)
+    jnc #non_overflowing_y_for_rendering_casted_columns
+
+    clr %rdj       ; basic bounds check for safety (incase the player is right up against a wall or something)
+    ; adjusting the total size
+    ldrar %rda
+    ldral %acc
+    sub
+    movreg %acc
+    ldral %rdk
+    ldrar %acc
+    sub
+    movreg %rdk    ; should now be correctly sized
+
+  .non_overflowing_y_for_rendering_casted_columns:
+    ; second bounds check for height
+    ; if size + starting y > 127 set size to 127 - starting_y
+    ldral %rdk
+    ldrar %rdj
+    add
+    movreg %acc
+    ldral %acc
+    ldiar $127
+    cmpg
+    jnz #non_bounds_exceeding_y_for_rendering_casted_columns
+
+    ; getting the valid position
+    ldial $79
+    ldrar %rdj
+    sub
+    movreg %rdk    ; this should now be correct and safe (a small overflow is fine sense there's a small buffer built in to ensure no memory collisions)
+
+  .non_bounds_exceeding_y_for_rendering_casted_columns:    ; long names to ensure no collisions
+
+    ldral %rdj
+    ldiar $128
+    mult           ; turning it to a pixel coord
+    movreg %rdj
+
+    ; starting the loop to actually render the column
+    clr %rda       ; stores the iteration count (if equal to size, stop the loop)
+    grab #0 %rdb   ; the screen pointer
+    ldral %rdb
+    ldrar %rdl
+    add            ; getting the offset-ed position
+    movreg %rdb
+    ldral %rdb
+    ldrar %rdj
+    add
+    movreg %rdb    ; offsetting based on the y position
+    ; offsetting for the y position start
+    .casted_column_rendering_loop:
+        ; rendering stuff... todo!
+        ldi %rdc $1000   ; temp for now
+        strp [%rdb] %rdc
+
+        ; checking the bounds of the loop (and increasing the iteration count)
+        ldral %rda
+        inc              ; updating the iteration count
+        movreg %rda
+
+        ldral %rdb
+        ldiar $128
+        add              ; moving down one pixel
+        movreg %rdb
+
+        ldral %rda
+        ldrar %rdk
+        cmpeq
+        jnz #casted_column_rendering_loop
+    ret
+

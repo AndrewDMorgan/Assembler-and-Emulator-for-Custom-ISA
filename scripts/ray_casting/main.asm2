@@ -1,0 +1,81 @@
+; !! Taken Memory Locations !!
+;   25,000 - 55,000 (screen buffer + null strip for clearing)
+;   0               (the current screen buffer to write to)
+;   20,000 - 22,500 (the level data; 50 by 50 tiles)
+
+; setting up the screen
+ldi %rda $25000  ; leaving plenty of room for other things
+setbuf %rda
+ldi %rda $40000  ; the other buffer location (plenty of space between incase of out-of-bounds writes)
+str %rda #0      ; #0x0 is the address of the current screen buffer
+; initialization
+
+; continuing onto the main game loop
+jmp #core_game_loop
+
+.core_game_loop:
+    ; flipping the screen buffer
+    ; the math for the buffer is:   (40,000 - buffer) + 25,000
+    grab #0 %rda
+    setbuf %rda     ; setting the buffer to the current location
+    ldrar %rda
+    ldial $40000
+    sub             ; 40,000 - buffer
+    movreg %rda
+    ldrar %rda
+    ldial $25000
+    add             ; (...) + 25,000
+    movreg %rda
+    str %rda #0     ; updating the new buffer (to write to the next frame
+
+    ; clearing the buffer
+    call #clear_screen_buffer
+
+    ; rendering stuff and other things go here
+    pshcon $0
+    pshcon $25
+    pshcon $20
+    call #render_casted_column   ; testing stuff
+
+    ; syncing the game with the display
+    .vsync_wait:
+        sync
+        jnz #vsync_wait
+
+    ; looping back again
+    jmp #core_game_loop
+
+
+; clears the screen buffer using memcpy
+.clear_screen_buffer:
+    ; iterating over each row (%rda is the row index)
+    clr %rda         ; clr uses 2 bytes less than ldi %reg number -- clr sets it to 0
+    ldi %rdb $39000  ; the location of the null strip that will be cloned
+    .screen_clearing_loop:
+        ; copying a set of zeros over (size 128)
+        ldral %rda
+        ldiar $128
+        mult           ; row * 128  (to get the starting position of the row)
+        movreg %rdc
+        ldral %rdc
+        grab #0 %rdc
+        ldrar %rdc
+        add            ; (...) + screen_buffer_pointer
+        movreg %rdc
+        memcpy [%rdb] [%rdc] $128
+
+        ; incrementing the row index
+        ldral %rda
+        inc
+        movreg %rda
+
+        ldral %rda
+        ldiar $80     ; 0 - 79 are the rows; once it hits 80 it stops
+        cmpeq
+        jnz #screen_clearing_loop
+    ret
+
+
+; shuts down the program (doing anything it needs to do during then before calling halt)
+.shutdown:
+    halt

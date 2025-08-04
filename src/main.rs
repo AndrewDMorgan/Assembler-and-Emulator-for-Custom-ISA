@@ -1,6 +1,7 @@
-// ! 18.0505mhz for the average clock speed (about)  or about 55.44ns
-// the keyboard supports single-byte ascii character inputs
-// the screen runs at 24 hertz, using proper scan lines and blanking sequences and timing
+// ~~~old~~~ ! 18.0505mhz for the average clock speed (about)  or about 55.44ns
+/// 18.181_818_2 mhz for the average clock speed, or about 55ns
+/// the keyboard supports single-byte ascii character inputs
+/// the screen runs at 24 hertz, using proper scan lines and blanking sequences and timing
 
 /*
 TODO's:
@@ -254,7 +255,7 @@ static REGISTER_ENCODINGS: [(&str, u32); 15] = [
 pub fn register_as_byte (register: &str) -> u32 {
     for reg in REGISTER_ENCODINGS.iter() {
         if reg.0 == register {  return reg.1;  }
-    } panic!("Invalid register name; {}", register)  // this shouldn't happen (unless you used nop for some unknown reason as a register???)
+    } panic!("Assembly Error: Invalid register name; {}\n--Check for ldr... being miss-typed instead of ldi.... Check for an invalid register name (won't be correctly highlighted if using syntax highlighting).", register)  // this shouldn't happen (unless you used nop for some unknown reason as a register???)
 }
 #[derive(Debug)]
 pub struct Macro {
@@ -563,8 +564,21 @@ pub fn emulation_loop() {
         vec![")"]
     ];
     
-    let code = std::fs::read_to_string("/Users/Andrew/Desktop/Programing/Rust/AssemblerV2/scripts/pong.asm2")
-        .unwrap().lines().map(|s| s.to_string()).collect();
+    // all the files are linked together before being assembled. Memory and header names will collide if not managed correctly
+    // the files are linked in the order they're put in; the first file (index 0) is the start of the final linked file
+    let files = [
+        "/Users/Andrew/Desktop/Programing/Rust/AssemblerV2/scripts/ray_casting/main.asm2",
+        "/Users/Andrew/Desktop/Programing/Rust/AssemblerV2/scripts/ray_casting/ray_casting.asm2",
+        "/Users/Andrew/Desktop/Programing/Rust/AssemblerV2/scripts/ray_casting/basic_rendering.asm2",
+        "/Users/Andrew/Desktop/Programing/Rust/AssemblerV2/scripts/ray_casting/core_functions.asm2",
+    ];
+    let mut code = vec![];
+    for file in files {
+        let mut new_code = std::fs::read_to_string(file)
+            .unwrap().lines().map(|s| s.to_string()).collect();
+        code.append(&mut new_code);
+    }
+    
     println!("{:?}", code);
     
     let mut tokens = tokenize(code, &splitters);
@@ -597,6 +611,7 @@ pub fn emulation_loop() {
         instruction_size_table[0x1D] = 1;
         instruction_size_table[0x1E] = 1;
         instruction_size_table[0x1F] = 1;
+        
         instruction_size_table[0x21] = 2;
         instruction_size_table[0x22] = 4;
         instruction_size_table[0x23] = 4;
@@ -609,11 +624,13 @@ pub fn emulation_loop() {
         instruction_size_table[0x2A] = 4;
         instruction_size_table[0x2B] = 3;
         instruction_size_table[0x2C] = 3;
+        
         instruction_size_table[0x31] = 2;
         instruction_size_table[0x32] = 2;
         instruction_size_table[0x33] = 1;
         instruction_size_table[0x34] = 1;
         instruction_size_table[0x35] = 1;
+        
         instruction_size_table[0x41] = 2;
         instruction_size_table[0x42] = 2;
         instruction_size_table[0x43] = 2;
@@ -626,6 +643,7 @@ pub fn emulation_loop() {
         instruction_size_table[0x4A] = 2;
         instruction_size_table[0x4B] = 3;
         instruction_size_table[0x4C] = 1;
+        
         instruction_size_table[0x51] = 3;
         instruction_size_table[0x52] = 3;
         instruction_size_table[0x53] = 1;
@@ -638,11 +656,14 @@ pub fn emulation_loop() {
         instruction_size_table[0x5A] = 2;
         instruction_size_table[0x5B] = 2;
         instruction_size_table[0x5C] = 3;
+        
         instruction_size_table[0x61] = 1;
         instruction_size_table[0x62] = 3;
         instruction_size_table[0x63] = 4;
         instruction_size_table[0x64] = 4;
         instruction_size_table[0x65] = 2;
+        instruction_size_table[0x66] = 1;
+        
         instruction_size_table[0x71] = 2;
         instruction_size_table[0x72] = 2;
         instruction_size_table[0x73] = 3;
@@ -657,7 +678,9 @@ pub fn emulation_loop() {
         instruction_size_table[0x7C] = 2;
         instruction_size_table[0x7D] = 4;
         instruction_size_table[0x7E] = 2;
-        // mult and div r just 1; too lazy to add
+        
+        instruction_size_table[0x81] = 1;
+        instruction_size_table[0x82] = 1;
     }
     
     let mut instruction_refs = [0usize; u16::MAX as usize+1];
@@ -750,7 +773,7 @@ pub fn emulation_loop() {
     
     
     // going through the program
-    let mut cycle_count = 0;
+    let mut cycle_count = 0u128;
     let mut instruction_count: u64 = 0;
     let program_start = (now_nanoseconds(), std::time::Instant::now());
     let mut target = program_start.0;
@@ -820,23 +843,27 @@ pub fn emulation_loop() {
             // incrementing the target time
             target += FRAME_TIME;
             
-            debug_println!("Debug:  line/inst: {}/{:x}    registers: {:?}    ram (first 40bytes/20 addresses): {:?}     stack (first 40bytes/20 addresses): {:?}", registers[14], byte_code, registers, &ram[0..20], &stack[0..20]);
+            debug_println!("\x1b[0m\x1b[84;1HDebug:  line/inst: {}/{:x}    registers: {:?}    ram (first 40bytes/20 addresses): {:?}     stack (first 40bytes/20 addresses): {:?}", registers[14], byte_code, registers, &ram[0..20], &stack[0..20]);
             //std::thread::sleep(std::time::Duration::from_micros(1));
             //std::thread::sleep(std::time::Duration::from_nanos(10));
         }
     }
     let program_end = now_nanoseconds();
-    println!("Elapsed time: {}   avg. {}/{} over {} cycles and {} instructions", program_end - program_start.0, program_start.1.elapsed().as_nanos() as f64 / cycle_count as f64, (program_end - program_start.0) as f64 / cycle_count as f64, cycle_count, instruction_count);
-    println!("Debug:  registers: {:?}    ram (first 40bytes/20 addresses): {:?}", registers, &ram[0..20]);
+    let end_elapsed = program_start.1.elapsed();
     
     keyboard_sender.send(true).unwrap();
     sender.send(true).unwrap();
     thread.join().unwrap();  // by joining and waiting, this ensures there aren't any dangling references when this function goes out of scope
     crossterm::terminal::disable_raw_mode().unwrap();
     // not joining the keyboard thread so this thread isn't blocked (any null pointers wouldn't have much time to really do anything
+    
+    // making sure this isn't blocked by the screen
+    println!("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+    println!("Elapsed time: {}   avg. {}/{} over {} cycles and {} instructions", program_end - program_start.0, end_elapsed.as_nanos() as f64 / cycle_count as f64, (program_end - program_start.0) as f64 / cycle_count as f64, cycle_count, instruction_count);
+    println!("Debug:  registers: {:?}    ram (first 40bytes/20 addresses): {:?}", registers, &ram[0..20]);
 }
 
-static FRAME_TIME: u64 = 59;  // 214 - 50;  targeting about 16.776 mhz which is the speed of one of the processors in the game boy advanced
+static FRAME_TIME: u64 = 55;  // 214 - 50;  targeting about 16.776 mhz which is the speed of one of the processors in the game boy advanced
 
 
 use libc::{c_int, c_uint};
@@ -878,7 +905,9 @@ pub enum Interrupt {
     Halt   = 0,
     Cycles = 1,
     Buffer = 2,
-    Null   = 3
+    Null   = 3,
+    Io     = 4,
+    Sync   = 5,
 }
 
 #[inline(always)]
@@ -894,9 +923,11 @@ pub fn parse_instruction (
     carry    : &mut bool,
     screen_buffer_pointer: &mut usize,
     target   : &mut u64,
-    i        : &mut u64,
+    i        : &mut u128,  // cycle count
     vsync    : *mut bool,
 ) {
+    //println!("Code: {}", byte_code);
+    //std::thread::sleep(std::time::Duration::from_millis(1000));
     match byte_code {
         0x00 => {    },  // nop
         
@@ -932,11 +963,11 @@ pub fn parse_instruction (
         0x2C => {  registers[16] = ((operands[0] as u16) << 8) | (operands[1] as u16)  },  // ldial
         
         // i/o
-        0x31 => {  registers[22] = 1; registers[20] = registers[(operands[0] >> 4) as usize]  },  // out    output = register, output flag = active
-        0x32 => {  registers[(operands[0] >> 4) as usize] = registers[19]; registers[21] = 0;  },  // inp    register = input, input flag = inactive
-        0x33 => {  if registers[21] > 0 {  *jumped = true; registers[13] = registers[13].overflowing_sub(1).0; registers[14] = stack[registers[13] as usize]  }},  // retio       // 19, 20, 21, 22    inp, out, inp flag, out flag
-        0x34 => {  *zero = registers[21] > 0  },  // cmpio
-        0x35 => {  registers[22] = 1  },  // setout
+        0x31 => {  *interrupt = Interrupt::Io; registers[22] = 1; registers[20] = registers[(operands[0] >> 4) as usize]  },  // out    output = register, output flag = active
+        0x32 => {  *interrupt = Interrupt::Io; registers[(operands[0] >> 4) as usize] = registers[19]; registers[21] = 0;  },  // inp    register = input, input flag = inactive
+        0x33 => {  *interrupt = Interrupt::Io; if registers[21] > 0 {  *jumped = true; registers[13] = registers[13].overflowing_sub(1).0; registers[14] = stack[registers[13] as usize]  }},  // retio       // 19, 20, 21, 22    inp, out, inp flag, out flag
+        0x34 => {  *interrupt = Interrupt::Io; *zero = registers[21] > 0  },  // cmpio
+        0x35 => {  *interrupt = Interrupt::Io; registers[22] = 1  },  // setout
         
         /*
         1: register_rda, 2: register_rdb, 3: register_rdc, 4: register_rdd, 5: register_rde,
@@ -980,7 +1011,7 @@ pub fn parse_instruction (
         0x63 => {  *target += FRAME_TIME * 7; *i+=7; todo!()  },  // blkcpy
         0x64 => {  *target += FRAME_TIME * 7; *i+=7; todo!()  },  // sptcpy
         0x65 => {  *interrupt = Interrupt::Cycles; registers[(operands[0] >> 4) as usize] = (*i & 0x0000_0000_0000_FFFF) as u16; /*casting to prevent overflow; using an add and waiting for greater should be safe even if an overflow is cast down*/  },  // cycles
-        0x66 => unsafe {  *zero = false; if *vsync { *vsync = false; *zero = true; }  },  // sync
+        0x66 => unsafe {  *interrupt = Interrupt::Sync; *zero = false; if *vsync { *vsync = false; *zero = true; }  },  // sync
         
         // advanced memory
         0x71 => {  registers[(operands[0] >> 4) as usize] = 0x0000 | *zero as u16 | ((*carry as u16) << 1)  },  // flags
@@ -1000,10 +1031,11 @@ pub fn parse_instruction (
                 // as long as the programmer didn't write an assembly script that accesses out of bounds memory, there should be no issues
                 // kinda a big foot-gun, but whatever, it's assembly after all so nothing's safe and this should ensure good performance
                 // what are the odds this even works........ it's definitely gonna cause issues
+                //panic!("Entered: {} {} {}", registers[(operands[0] >> 4) as usize], registers[(operands[0] & 0x0F) as usize], operands[1] as usize);
                 std::ptr::copy(
                     ram.as_ptr().offset(registers[(operands[0] >> 4) as usize] as isize),  // the pointer to the source in ram
                     ram.as_mut_ptr().offset(registers[(operands[0] & 0x0F) as usize] as isize),  // the pointer to the destination in ram
-                    operands[1] as usize  // the specified size of the chunk to copy
+                    ((operands[1] as usize) << 8) | operands[2] as usize  // the specified size of the chunk to copy
                 );
             }
         },  // memcpy

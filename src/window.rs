@@ -68,13 +68,15 @@ pub fn screen_thread (ram_pointer: RawPtr<u16>, buffer_pointer: RawPtr<usize>, f
                     // \x1b[0;{};{};{}m
                     print!("\x1b[{};{}H\x1b[0;48;2;{};{};{}m   ", row + 2, collumn*3 + 3, red, green, blue);  // 2 spaces that have a background color should work?
                 }
-                while collumn_start.elapsed().as_nanos() as f64 * 1000f64 < 2.95928267 {}
+                while collumn_start.elapsed().as_nanos() < 2959 {}
             }
             
-            while start.elapsed().as_nanos() as f64 * 1000f64 < 473.485227 {}
+            while start.elapsed().as_nanos() < 473484 {}
         }
         // removing 0.1 of a sec to hopefully remove any tiny errors that might accumulate over time
-        while frame_start.elapsed().as_nanos() as f64 * 1000f64 < 41666.7 {}  // ensureing the total frame time aligns correctly incase of tiny errors along the way
+        while frame_start.elapsed().as_nanos() < 41666666 {}  // ensureing the total frame time aligns correctly incase of tiny errors along the way
+        //let frames = 1. / frame_start.elapsed().as_secs_f64();
+        //println!("\x1b[0m\x1b[83;1HElapsed frame rate: {}", frames);
         //println!("{}", unsafe{*buffer_pointer.get()});
     }
     

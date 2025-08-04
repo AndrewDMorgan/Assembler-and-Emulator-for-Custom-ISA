@@ -1,0 +1,6 @@
+; handles the actual ray casting
+
+; gets all the rays (the casting/tracking will happen in another function)
+.spawn_rays_for_rendering:
+    clr %rda
+
