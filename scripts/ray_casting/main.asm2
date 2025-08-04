@@ -1,14 +1,75 @@
 ; !! Taken Memory Locations !!
 ;   25,000 - 55,000 (screen buffer + null strip for clearing)
+;   64,000 - 65,000 (sin lookup table)
 ;   0               (the current screen buffer to write to)
 ;   20,000 - 22,500 (the level data; 50 by 50 tiles)
+; player info:
+;   1               (the view angle of the player)
+;   2               (x pos of the player; bit shifted 8 times for 8 fixed points)
+;   3               (y pos of the player; bit shifted 8 times for 8 fixed points)
+;   4               (z pos of the player; bit shifted 8 times for 8 fixed points)
 
 ; setting up the screen
 ldi %rda $25000  ; leaving plenty of room for other things
 setbuf %rda
 ldi %rda $40000  ; the other buffer location (plenty of space between incase of out-of-bounds writes)
 str %rda #0      ; #0x0 is the address of the current screen buffer
+
 ; initialization
+call #create_sin_lookup_table
+
+;!!! temp texture !!! (todo! remove once done or move to new location)
+ldi %rda $1000
+str %rda #10
+
+ldi %rda $25000
+str %rda #26
+
+ldi %rda $5000
+str %rda #42
+
+ldi %rda $47000
+str %rda #58
+
+ldi %rda $9000
+str %rda #74
+
+ldi %rda $21000
+str %rda #90
+
+ldi %rda $2000
+str %rda #106
+
+ldi %rda $15000
+str %rda #122
+
+ldi %rda $55000
+str %rda #138
+
+ldi %rda $1000
+str %rda #154
+
+ldi %rda $28000
+str %rda #170
+
+ldi %rda $12000
+str %rda #186
+
+ldi %rda $13000
+str %rda #202
+
+ldi %rda $14000
+str %rda #218
+
+ldi %rda $15000
+str %rda #234
+
+ldi %rda $35000
+str %rda #250
+
+ldi %rda $65000
+str %rda #266
+
 
 ; continuing onto the main game loop
 jmp #core_game_loop
@@ -32,10 +93,13 @@ jmp #core_game_loop
     call #clear_screen_buffer
 
     ; rendering stuff and other things go here
+    pshcon $10  ; index of first temp texture
     pshcon $0
     pshcon $25
     pshcon $20
     call #render_casted_column   ; testing stuff
+
+    call #ray_casting_loop_for_rendering
 
     ; syncing the game with the display
     .vsync_wait:

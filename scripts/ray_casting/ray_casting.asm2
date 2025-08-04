@@ -2,5 +2,70 @@
 
 ; gets all the rays (the casting/tracking will happen in another function)
 .spawn_rays_for_rendering:
-    clr %rda
+    ; need the player's starting angle
+    ; increment the angle by a constant amount (this would determine the fov)
+    ; convert the angle into a 2d vector
+    ; track the ray until it hits something
+    ; find the x coord within the texture for the collision (along with the texture)
+    ; send a vertical slice of the texture along with positional info to the column rendering function
+    ; size is determined by distance; offset would only be for things like jumping or half sized blocks or whatever
+
+    ; aiming for 90 degree fov; 0.7854 rads to the left, 0.7854 to the right
+    ; 0.012271875 increments    the angle needs to be calced on the go because the error margin for the increments is just far too small (it appeared to be an approximation of pie)
+    ; interestingly the increment amount was close to pie, despite the transformations
+    ; original_offset - (index<<8 / 81)       (rdb is the offset)     this formula already keeps it in the correct fixed point notation
+    grab #1 %rdb   ; the players view angle
+    ldral %rdb
+    ldiar $201   ; about equal to 0.7854 I think?  post shifts ((0.7854*10000)<<8 / 10000); using 8 left bit-shifts for the fixed point notation
+    add
+    movreg %rdb
+
+    clr %rda  ; the current index
+    .ray_casting_loop_for_rendering:
+        ; getting the current angle
+        ldral %rda
+        ldiar $8
+        left           ; in the correct fixed point notation now
+        movreg %acc
+        ldral %acc
+        ldiar $81
+        div            ; (index<<8 / 81)
+        movreg %acc
+        ldrar %acc
+        ldral %rdb
+        sub            ; (...) + offset    (still in fixed point notation; it'll stay like that until being casted when used later on)
+        jnc #ray_angle_is_positive:
+
+        ; correcting the overflow by adding 360
+        ldral %rdb
+        ldiar $1608    ; an approximation of 2pi in 8-bits fixed point notation     round(round(2pi * 10,000)<<8 / 10,000)   appears to be within a 1000nth of 2pi
+        add
+        ldrar %acc     ; moving the right-side of the equation into the right alu register ( a little weird looking using %acc three times)
+        movreg %acc    ; retreating the corrected view angle
+        ldral %acc     ; moving that correct view angle into the left alu register to perform the subtraction
+        sub            ; same formula as before, just corrected by adding 360/2pi to the value before subtraction
+
+      .ray_angle_is_positive:
+        movreg %rdl   ; has the final angle for the current ray (convert it to a 2d vector now..... todo)
+        ; x = cos(angle_in_radians)
+        ; y = sin(angle_in_radians)
+        call #sin_math_operation_with_table
+        mov %acc %rdc  ; the y vector coord
+        call #cos_math_operation_with_table
+        mov %acc %rdd  ; the x vector coord
+
+        ; do casting here   todo
+
+        ; incrementing the index
+        ldral %rda
+        inc
+        movreg %rda
+
+        ; checking the bounds of the loop
+        ldral %rda
+        ldiar $128     ; the width of the screen
+        cmpeq
+        jnz #ray_casting_loop_for_rendering
+
+    ret
 

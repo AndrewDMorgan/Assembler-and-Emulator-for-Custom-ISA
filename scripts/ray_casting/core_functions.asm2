@@ -1,6 +1,5 @@
 ; basic math stuff ig
 
-
 ; does addition while accounting for the sign bit
 ; %rda is the input
 ; %rdb is the other value being added
@@ -36,4 +35,944 @@
   .set_zero_for_signed_addition:
     clr %rda    ; incase the value is out of bounds or something
     ret
+
+
+; performs a modulo operation (x - (x / m) * m     ==   x % m)
+; uses rdl, rdk, and acc
+; acc is the output of the function
+.modulo_operator_function:
+    ; x is inside rdl
+    ; m is inside rdk
+    ldral %rdl
+    ldrar %rdk
+    div           ; x / m
+    movreg %acc
+    ldral %acc
+    mult          ; (...) * m     m is still in alu right
+    movreg %acc
+    ldral %rdl
+    ldrar %acc
+    sub
+    movreg %acc
+    ret
+
+
+; inputs are: rdl for x, output is acc
+; also uses rdk and rdj
+; performs sin(x)
+; the sign bit is pushed into the first bit
+.sin_math_operation_with_table:
+    ; the value of angle/pi should only be odd in positive quads
+    ldral %rdl
+    ldiar $804       ; pi in the fixed notation
+    div
+    mov %rdl %rdj    ; moving the value so it isn't corrupted
+    movreg %rdl
+    ldi %rdk $2
+    call #modulo_operator_function
+    mov %rdj %rdl    ; restoring the value
+    mov %acc %rdj    ; saving the sign bit
+    ; acc has the 0 for even, and 1 for odd (negative). This can just be the sign bit
+
+    ; finding the mod of the value and pi/2 to ensure the interval is respected
+    ; rdl already has x
+    ldi %rdk $402    ; pi/2 approximated in 8-bit fixed point notation
+    call #modulo_operator_function
+    mov %acc %rdl    ; overwriting the value of rdl (0-pi/2)
+
+    ; looking up in the table
+    ldral %rdl
+    ldiar $64000
+    add              ; doing the pointer math offsets
+    movreg %acc
+    ldrp [%acc] %acc ; retreating the value
+
+    ; applying the sign to %acc
+    ldral %acc
+    ldiar $65534     ; 16-bits max - 1 (leaving the first bit as a 0)
+    and
+    movreg %acc
+    ldral %acc
+    ldrar %rdj
+    or               ; adding the sign bit
+    movreg %acc
+
+    ret
+
+
+
+; inputs are: rdl for x, output is acc
+; also uses rdk
+; performs sin(x)
+; the sign bit is pushed into the first bit
+
+; this would work..... but it'll overflow too easily. It'd need at least 32-bits, if not more
+.sin_math_operation:
+    ; finding the mod of the value and pi/2 to ensure the interval is respected
+    ; rdl already has x
+    ldi %rdk $402    ; pi/2 approximated in 8-bit fixed point notation
+    call #modulo_operator_function
+    mov %acc %rdl    ; overwriting the value of rdl
+
+    ; x - x³/6 + x⁵/120
+
+    ; calculating x ^ 3
+    ldral %rdl
+    ldrar %rdl
+    mult          ; x^2
+    movreg %acc
+    ldral %acc
+    mult          ; x^3
+    movreg %acc   ; saving the results for the second term
+    ldral %acc    ; dividing by 6 before returning to calculating x^5
+    ldiar $6
+    div           ; x^3 / 6
+    movreg %rdk
+    ; finishing calculating x^5
+    ldrar %rdl    ; this needs to be loaded back in
+    ldral %acc
+    mult          ; x^4
+    movreg %acc
+    ldral %acc
+    mult          ; x^5
+    movreg %acc
+    ldral %acc
+    ldiar $120
+    div           ; x^5 / 120
+    movreg %acc
+
+    ; calculating the rest (addition first to avoid negative; on the interval 0-pi/2 there shouldn't be any negatives simplifying things)
+    ldral %rdl
+    ldrar %acc
+    add           ; x + x^5/120
+    movreg %acc
+    ldral %acc
+    ldrar %rdk
+    sub           ; (...) - x^3/6
+    movreg %acc   ; the final result
+
+    ret
+
+
+; performs sin(x + pi/2)  creating cos
+; inputs are: rdl for x, output is acc (helper function for sin)
+.cos_math_operation_with_table:
+    ldral %rdl
+    ldiar $402    ; pi/2 approximation in 8-bit fixed point notation  (this actually aligns correctly with doubling the approximation of 201 for pi/4 in the ray-casting code)
+    movreg %rdl   ; the shifted value
+    call #sin_math_operation_with_table
+    ret
+
+
+; initializes the sin lookup table
+; uses 64,000 onwards (402 entries, representing 0 - 401 aka 0 to pi/2)   with one extra entry to the right for padding (incase of an out of bounds access)
+.create_sin_lookup_table:
+    ldi %rda $0
+    str %rda #64000
+    ldi %rda $1
+    str %rda #64001
+    ldi %rda $2
+    str %rda #64002
+    ldi %rda $3
+    str %rda #64003
+    ldi %rda $4
+    str %rda #64004
+    ldi %rda $5
+    str %rda #64005
+    ldi %rda $6
+    str %rda #64006
+    ldi %rda $7
+    str %rda #64007
+    ldi %rda $8
+    str %rda #64008
+    ldi %rda $9
+    str %rda #64009
+    ldi %rda $10
+    str %rda #64010
+    ldi %rda $11
+    str %rda #64011
+    ldi %rda $12
+    str %rda #64012
+    ldi %rda $13
+    str %rda #64013
+    ldi %rda $14
+    str %rda #64014
+    ldi %rda $15
+    str %rda #64015
+    ldi %rda $16
+    str %rda #64016
+    ldi %rda $17
+    str %rda #64017
+    ldi %rda $18
+    str %rda #64018
+    ldi %rda $19
+    str %rda #64019
+    ldi %rda $20
+    str %rda #64020
+    ldi %rda $21
+    str %rda #64021
+    ldi %rda $22
+    str %rda #64022
+    ldi %rda $23
+    str %rda #64023
+    ldi %rda $24
+    str %rda #64024
+    ldi %rda $25
+    str %rda #64025
+    ldi %rda $26
+    str %rda #64026
+    ldi %rda $27
+    str %rda #64027
+    ldi %rda $28
+    str %rda #64028
+    ldi %rda $29
+    str %rda #64029
+    ldi %rda $30
+    str %rda #64030
+    ldi %rda $31
+    str %rda #64031
+    ldi %rda $32
+    str %rda #64032
+    ldi %rda $33
+    str %rda #64033
+    ldi %rda $34
+    str %rda #64034
+    ldi %rda $35
+    str %rda #64035
+    ldi %rda $36
+    str %rda #64036
+    ldi %rda $37
+    str %rda #64037
+    ldi %rda $38
+    str %rda #64038
+    ldi %rda $39
+    str %rda #64039
+    ldi %rda $40
+    str %rda #64040
+    ldi %rda $41
+    str %rda #64041
+    ldi %rda $42
+    str %rda #64042
+    ldi %rda $43
+    str %rda #64043
+    ldi %rda $44
+    str %rda #64044
+    ldi %rda $45
+    str %rda #64045
+    ldi %rda $46
+    str %rda #64046
+    ldi %rda $47
+    str %rda #64047
+    ldi %rda $48
+    str %rda #64048
+    ldi %rda $49
+    str %rda #64049
+    ldi %rda $50
+    str %rda #64050
+    ldi %rda $51
+    str %rda #64051
+    ldi %rda $52
+    str %rda #64052
+    ldi %rda $53
+    str %rda #64053
+    ldi %rda $54
+    str %rda #64054
+    ldi %rda $55
+    str %rda #64055
+    ldi %rda $56
+    str %rda #64056
+    ldi %rda $57
+    str %rda #64057
+    ldi %rda $58
+    str %rda #64058
+    ldi %rda $58
+    str %rda #64059
+    ldi %rda $59
+    str %rda #64060
+    ldi %rda $60
+    str %rda #64061
+    ldi %rda $61
+    str %rda #64062
+    ldi %rda $62
+    str %rda #64063
+    ldi %rda $63
+    str %rda #64064
+    ldi %rda $64
+    str %rda #64065
+    ldi %rda $65
+    str %rda #64066
+    ldi %rda $66
+    str %rda #64067
+    ldi %rda $67
+    str %rda #64068
+    ldi %rda $68
+    str %rda #64069
+    ldi %rda $69
+    str %rda #64070
+    ldi %rda $70
+    str %rda #64071
+    ldi %rda $71
+    str %rda #64072
+    ldi %rda $72
+    str %rda #64073
+    ldi %rda $73
+    str %rda #64074
+    ldi %rda $74
+    str %rda #64075
+    ldi %rda $75
+    str %rda #64076
+    ldi %rda $76
+    str %rda #64077
+    ldi %rda $77
+    str %rda #64078
+    ldi %rda $78
+    str %rda #64079
+    ldi %rda $79
+    str %rda #64080
+    ldi %rda $80
+    str %rda #64081
+    ldi %rda $81
+    str %rda #64082
+    ldi %rda $82
+    str %rda #64083
+    ldi %rda $83
+    str %rda #64084
+    ldi %rda $83
+    str %rda #64085
+    ldi %rda $84
+    str %rda #64086
+    ldi %rda $85
+    str %rda #64087
+    ldi %rda $86
+    str %rda #64088
+    ldi %rda $87
+    str %rda #64089
+    ldi %rda $88
+    str %rda #64090
+    ldi %rda $89
+    str %rda #64091
+    ldi %rda $90
+    str %rda #64092
+    ldi %rda $91
+    str %rda #64093
+    ldi %rda $92
+    str %rda #64094
+    ldi %rda $93
+    str %rda #64095
+    ldi %rda $94
+    str %rda #64096
+    ldi %rda $95
+    str %rda #64097
+    ldi %rda $96
+    str %rda #64098
+    ldi %rda $97
+    str %rda #64099
+    ldi %rda $98
+    str %rda #64100
+    ldi %rda $98
+    str %rda #64101
+    ldi %rda $99
+    str %rda #64102
+    ldi %rda $100
+    str %rda #64103
+    ldi %rda $101
+    str %rda #64104
+    ldi %rda $102
+    str %rda #64105
+    ldi %rda $103
+    str %rda #64106
+    ldi %rda $104
+    str %rda #64107
+    ldi %rda $105
+    str %rda #64108
+    ldi %rda $106
+    str %rda #64109
+    ldi %rda $107
+    str %rda #64110
+    ldi %rda $108
+    str %rda #64111
+    ldi %rda $108
+    str %rda #64112
+    ldi %rda $109
+    str %rda #64113
+    ldi %rda $110
+    str %rda #64114
+    ldi %rda $111
+    str %rda #64115
+    ldi %rda $112
+    str %rda #64116
+    ldi %rda $113
+    str %rda #64117
+    ldi %rda $114
+    str %rda #64118
+    ldi %rda $115
+    str %rda #64119
+    ldi %rda $116
+    str %rda #64120
+    ldi %rda $117
+    str %rda #64121
+    ldi %rda $117
+    str %rda #64122
+    ldi %rda $118
+    str %rda #64123
+    ldi %rda $119
+    str %rda #64124
+    ldi %rda $120
+    str %rda #64125
+    ldi %rda $121
+    str %rda #64126
+    ldi %rda $122
+    str %rda #64127
+    ldi %rda $123
+    str %rda #64128
+    ldi %rda $124
+    str %rda #64129
+    ldi %rda $125
+    str %rda #64130
+    ldi %rda $125
+    str %rda #64131
+    ldi %rda $126
+    str %rda #64132
+    ldi %rda $127
+    str %rda #64133
+    ldi %rda $128
+    str %rda #64134
+    ldi %rda $129
+    str %rda #64135
+    ldi %rda $130
+    str %rda #64136
+    ldi %rda $131
+    str %rda #64137
+    ldi %rda $131
+    str %rda #64138
+    ldi %rda $132
+    str %rda #64139
+    ldi %rda $133
+    str %rda #64140
+    ldi %rda $134
+    str %rda #64141
+    ldi %rda $135
+    str %rda #64142
+    ldi %rda $136
+    str %rda #64143
+    ldi %rda $137
+    str %rda #64144
+    ldi %rda $137
+    str %rda #64145
+    ldi %rda $138
+    str %rda #64146
+    ldi %rda $139
+    str %rda #64147
+    ldi %rda $140
+    str %rda #64148
+    ldi %rda $141
+    str %rda #64149
+    ldi %rda $142
+    str %rda #64150
+    ldi %rda $142
+    str %rda #64151
+    ldi %rda $143
+    str %rda #64152
+    ldi %rda $144
+    str %rda #64153
+    ldi %rda $145
+    str %rda #64154
+    ldi %rda $146
+    str %rda #64155
+    ldi %rda $147
+    str %rda #64156
+    ldi %rda $147
+    str %rda #64157
+    ldi %rda $148
+    str %rda #64158
+    ldi %rda $149
+    str %rda #64159
+    ldi %rda $150
+    str %rda #64160
+    ldi %rda $151
+    str %rda #64161
+    ldi %rda $151
+    str %rda #64162
+    ldi %rda $152
+    str %rda #64163
+    ldi %rda $153
+    str %rda #64164
+    ldi %rda $154
+    str %rda #64165
+    ldi %rda $155
+    str %rda #64166
+    ldi %rda $155
+    str %rda #64167
+    ldi %rda $156
+    str %rda #64168
+    ldi %rda $157
+    str %rda #64169
+    ldi %rda $158
+    str %rda #64170
+    ldi %rda $159
+    str %rda #64171
+    ldi %rda $159
+    str %rda #64172
+    ldi %rda $160
+    str %rda #64173
+    ldi %rda $161
+    str %rda #64174
+    ldi %rda $162
+    str %rda #64175
+    ldi %rda $163
+    str %rda #64176
+    ldi %rda $163
+    str %rda #64177
+    ldi %rda $164
+    str %rda #64178
+    ldi %rda $165
+    str %rda #64179
+    ldi %rda $166
+    str %rda #64180
+    ldi %rda $166
+    str %rda #64181
+    ldi %rda $167
+    str %rda #64182
+    ldi %rda $168
+    str %rda #64183
+    ldi %rda $169
+    str %rda #64184
+    ldi %rda $169
+    str %rda #64185
+    ldi %rda $170
+    str %rda #64186
+    ldi %rda $171
+    str %rda #64187
+    ldi %rda $172
+    str %rda #64188
+    ldi %rda $172
+    str %rda #64189
+    ldi %rda $173
+    str %rda #64190
+    ldi %rda $174
+    str %rda #64191
+    ldi %rda $175
+    str %rda #64192
+    ldi %rda $175
+    str %rda #64193
+    ldi %rda $176
+    str %rda #64194
+    ldi %rda $177
+    str %rda #64195
+    ldi %rda $177
+    str %rda #64196
+    ldi %rda $178
+    str %rda #64197
+    ldi %rda $179
+    str %rda #64198
+    ldi %rda $180
+    str %rda #64199
+    ldi %rda $180
+    str %rda #64200
+    ldi %rda $181
+    str %rda #64201
+    ldi %rda $182
+    str %rda #64202
+    ldi %rda $182
+    str %rda #64203
+    ldi %rda $183
+    str %rda #64204
+    ldi %rda $184
+    str %rda #64205
+    ldi %rda $185
+    str %rda #64206
+    ldi %rda $185
+    str %rda #64207
+    ldi %rda $186
+    str %rda #64208
+    ldi %rda $187
+    str %rda #64209
+    ldi %rda $187
+    str %rda #64210
+    ldi %rda $188
+    str %rda #64211
+    ldi %rda $189
+    str %rda #64212
+    ldi %rda $189
+    str %rda #64213
+    ldi %rda $190
+    str %rda #64214
+    ldi %rda $191
+    str %rda #64215
+    ldi %rda $191
+    str %rda #64216
+    ldi %rda $192
+    str %rda #64217
+    ldi %rda $193
+    str %rda #64218
+    ldi %rda $193
+    str %rda #64219
+    ldi %rda $194
+    str %rda #64220
+    ldi %rda $195
+    str %rda #64221
+    ldi %rda $195
+    str %rda #64222
+    ldi %rda $196
+    str %rda #64223
+    ldi %rda $197
+    str %rda #64224
+    ldi %rda $197
+    str %rda #64225
+    ldi %rda $198
+    str %rda #64226
+    ldi %rda $198
+    str %rda #64227
+    ldi %rda $199
+    str %rda #64228
+    ldi %rda $200
+    str %rda #64229
+    ldi %rda $200
+    str %rda #64230
+    ldi %rda $201
+    str %rda #64231
+    ldi %rda $202
+    str %rda #64232
+    ldi %rda $202
+    str %rda #64233
+    ldi %rda $203
+    str %rda #64234
+    ldi %rda $203
+    str %rda #64235
+    ldi %rda $204
+    str %rda #64236
+    ldi %rda $205
+    str %rda #64237
+    ldi %rda $205
+    str %rda #64238
+    ldi %rda $206
+    str %rda #64239
+    ldi %rda $206
+    str %rda #64240
+    ldi %rda $207
+    str %rda #64241
+    ldi %rda $208
+    str %rda #64242
+    ldi %rda $208
+    str %rda #64243
+    ldi %rda $209
+    str %rda #64244
+    ldi %rda $209
+    str %rda #64245
+    ldi %rda $210
+    str %rda #64246
+    ldi %rda $210
+    str %rda #64247
+    ldi %rda $211
+    str %rda #64248
+    ldi %rda $212
+    str %rda #64249
+    ldi %rda $212
+    str %rda #64250
+    ldi %rda $213
+    str %rda #64251
+    ldi %rda $213
+    str %rda #64252
+    ldi %rda $214
+    str %rda #64253
+    ldi %rda $214
+    str %rda #64254
+    ldi %rda $215
+    str %rda #64255
+    ldi %rda $215
+    str %rda #64256
+    ldi %rda $216
+    str %rda #64257
+    ldi %rda $217
+    str %rda #64258
+    ldi %rda $217
+    str %rda #64259
+    ldi %rda $218
+    str %rda #64260
+    ldi %rda $218
+    str %rda #64261
+    ldi %rda $219
+    str %rda #64262
+    ldi %rda $219
+    str %rda #64263
+    ldi %rda $220
+    str %rda #64264
+    ldi %rda $220
+    str %rda #64265
+    ldi %rda $221
+    str %rda #64266
+    ldi %rda $221
+    str %rda #64267
+    ldi %rda $222
+    str %rda #64268
+    ldi %rda $222
+    str %rda #64269
+    ldi %rda $223
+    str %rda #64270
+    ldi %rda $223
+    str %rda #64271
+    ldi %rda $224
+    str %rda #64272
+    ldi %rda $224
+    str %rda #64273
+    ldi %rda $225
+    str %rda #64274
+    ldi %rda $225
+    str %rda #64275
+    ldi %rda $226
+    str %rda #64276
+    ldi %rda $226
+    str %rda #64277
+    ldi %rda $227
+    str %rda #64278
+    ldi %rda $227
+    str %rda #64279
+    ldi %rda $227
+    str %rda #64280
+    ldi %rda $228
+    str %rda #64281
+    ldi %rda $228
+    str %rda #64282
+    ldi %rda $229
+    str %rda #64283
+    ldi %rda $229
+    str %rda #64284
+    ldi %rda $230
+    str %rda #64285
+    ldi %rda $230
+    str %rda #64286
+    ldi %rda $231
+    str %rda #64287
+    ldi %rda $231
+    str %rda #64288
+    ldi %rda $231
+    str %rda #64289
+    ldi %rda $232
+    str %rda #64290
+    ldi %rda $232
+    str %rda #64291
+    ldi %rda $233
+    str %rda #64292
+    ldi %rda $233
+    str %rda #64293
+    ldi %rda $234
+    str %rda #64294
+    ldi %rda $234
+    str %rda #64295
+    ldi %rda $234
+    str %rda #64296
+    ldi %rda $235
+    str %rda #64297
+    ldi %rda $235
+    str %rda #64298
+    ldi %rda $236
+    str %rda #64299
+    ldi %rda $236
+    str %rda #64300
+    ldi %rda $236
+    str %rda #64301
+    ldi %rda $237
+    str %rda #64302
+    ldi %rda $237
+    str %rda #64303
+    ldi %rda $237
+    str %rda #64304
+    ldi %rda $238
+    str %rda #64305
+    ldi %rda $238
+    str %rda #64306
+    ldi %rda $239
+    str %rda #64307
+    ldi %rda $239
+    str %rda #64308
+    ldi %rda $239
+    str %rda #64309
+    ldi %rda $240
+    str %rda #64310
+    ldi %rda $240
+    str %rda #64311
+    ldi %rda $240
+    str %rda #64312
+    ldi %rda $241
+    str %rda #64313
+    ldi %rda $241
+    str %rda #64314
+    ldi %rda $241
+    str %rda #64315
+    ldi %rda $242
+    str %rda #64316
+    ldi %rda $242
+    str %rda #64317
+    ldi %rda $242
+    str %rda #64318
+    ldi %rda $243
+    str %rda #64319
+    ldi %rda $243
+    str %rda #64320
+    ldi %rda $243
+    str %rda #64321
+    ldi %rda $244
+    str %rda #64322
+    ldi %rda $244
+    str %rda #64323
+    ldi %rda $244
+    str %rda #64324
+    ldi %rda $244
+    str %rda #64325
+    ldi %rda $245
+    str %rda #64326
+    ldi %rda $245
+    str %rda #64327
+    ldi %rda $245
+    str %rda #64328
+    ldi %rda $246
+    str %rda #64329
+    ldi %rda $246
+    str %rda #64330
+    ldi %rda $246
+    str %rda #64331
+    ldi %rda $246
+    str %rda #64332
+    ldi %rda $247
+    str %rda #64333
+    ldi %rda $247
+    str %rda #64334
+    ldi %rda $247
+    str %rda #64335
+    ldi %rda $248
+    str %rda #64336
+    ldi %rda $248
+    str %rda #64337
+    ldi %rda $248
+    str %rda #64338
+    ldi %rda $248
+    str %rda #64339
+    ldi %rda $249
+    str %rda #64340
+    ldi %rda $249
+    str %rda #64341
+    ldi %rda $249
+    str %rda #64342
+    ldi %rda $249
+    str %rda #64343
+    ldi %rda $249
+    str %rda #64344
+    ldi %rda $250
+    str %rda #64345
+    ldi %rda $250
+    str %rda #64346
+    ldi %rda $250
+    str %rda #64347
+    ldi %rda $250
+    str %rda #64348
+    ldi %rda $251
+    str %rda #64349
+    ldi %rda $251
+    str %rda #64350
+    ldi %rda $251
+    str %rda #64351
+    ldi %rda $251
+    str %rda #64352
+    ldi %rda $251
+    str %rda #64353
+    ldi %rda $252
+    str %rda #64354
+    ldi %rda $252
+    str %rda #64355
+    ldi %rda $252
+    str %rda #64356
+    ldi %rda $252
+    str %rda #64357
+    ldi %rda $252
+    str %rda #64358
+    ldi %rda $252
+    str %rda #64359
+    ldi %rda $253
+    str %rda #64360
+    ldi %rda $253
+    str %rda #64361
+    ldi %rda $253
+    str %rda #64362
+    ldi %rda $253
+    str %rda #64363
+    ldi %rda $253
+    str %rda #64364
+    ldi %rda $253
+    str %rda #64365
+    ldi %rda $253
+    str %rda #64366
+    ldi %rda $254
+    str %rda #64367
+    ldi %rda $254
+    str %rda #64368
+    ldi %rda $254
+    str %rda #64369
+    ldi %rda $254
+    str %rda #64370
+    ldi %rda $254
+    str %rda #64371
+    ldi %rda $254
+    str %rda #64372
+    ldi %rda $254
+    str %rda #64373
+    ldi %rda $254
+    str %rda #64374
+    ldi %rda $255
+    str %rda #64375
+    ldi %rda $255
+    str %rda #64376
+    ldi %rda $255
+    str %rda #64377
+    ldi %rda $255
+    str %rda #64378
+    ldi %rda $255
+    str %rda #64379
+    ldi %rda $255
+    str %rda #64380
+    ldi %rda $255
+    str %rda #64381
+    ldi %rda $255
+    str %rda #64382
+    ldi %rda $255
+    str %rda #64383
+    ldi %rda $255
+    str %rda #64384
+    ldi %rda $255
+    str %rda #64385
+    ldi %rda $255
+    str %rda #64386
+    ldi %rda $256
+    str %rda #64387
+    ldi %rda $256
+    str %rda #64388
+    ldi %rda $256
+    str %rda #64389
+    ldi %rda $256
+    str %rda #64390
+    ldi %rda $256
+    str %rda #64391
+    ldi %rda $256
+    str %rda #64392
+    ldi %rda $256
+    str %rda #64393
+    ldi %rda $256
+    str %rda #64394
+    ldi %rda $256
+    str %rda #64395
+    ldi %rda $256
+    str %rda #64396
+    ldi %rda $256
+    str %rda #64397
+    ldi %rda $256
+    str %rda #64398
+    ldi %rda $256
+    str %rda #64399
+    ldi %rda $256
+    str %rda #64400
+    ldi %rda $256
+    str %rda #64401
+    ldi %rda $256
+    str %rda #64402
+    ret
+
 

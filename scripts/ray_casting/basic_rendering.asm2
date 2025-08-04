@@ -1,8 +1,47 @@
 ; basic rendering things (like columns and stuff; maybe textures)
 
+; gets the textures color, and shoves it into rdc
+; uses %acc, returns via rdc
+.get_textured_pixel_for_column:
+    ; rda is the current height
+    ; rdk is the size
+    ; (16/size) * current_height
+    ; (16<<10  / size) * current_height  >> 10
+    ; use fixed point ig? A max of 16 is all that's needed, so maybe 10 shifts for good precision?
+
+    ; computing 16/size
+    ldial $16384   ; 16 << 10
+    ldrar %rdk
+    div            ; 16<<10 / size
+    movreg %acc
+    ldral %acc
+    ldrar %rda
+    mult           ; (...) * index
+    movreg %acc    ; current index
+
+    ; translating back to integer
+    ldral %acc
+    ldiar $10
+    right          ; (...) * ...  >> 10 (final step)
+    movreg %acc
+
+    ; finding the location relative to the texture coord
+    ldral %acc
+    ldiar $16
+    mult
+    movreg %acc
+    ldral %acc
+    ldrar %rdi  ; the pointer to the texture
+    add
+    movreg %acc
+    ldrp [%acc] %rdc
+
+    ; no clue why using ret was causing sooooo many issues....
+    jmp #get_textured_pixel_for_column_return
+
 
 ; renderings a column from the middle of the screen with a given size
-; uses rdl, rdk, rdj, rda, rdb, acc
+; uses rdl, rdk, rdj, rda, rdb, acc, rdi, rdc
 .render_casted_column:
     ; the first value in the stack is the x position
     ; the second value in the stack is the size
@@ -12,6 +51,7 @@
     pop %rdl       ; x position (x-pixel coord)
     pop %rdk       ; size
     pop %rda       ; offset -- will be an input into the signed addition function
+    pop %rdi       ; a pointer to the start of a vertical slice of a 16x16 texture
     psh %acc       ; restoring the return address
     ldi %rdb $40   ; the generic offset (center of screen
     call #signed_addition  ; %rda will contain the updated value
@@ -74,8 +114,8 @@
     movreg %rdb    ; offsetting based on the y position
     ; offsetting for the y position start
     .casted_column_rendering_loop:
-        ; rendering stuff... todo!
-        ldi %rdc $1000   ; temp for now
+        jmp #get_textured_pixel_for_column  ; gets the pixel color
+      .get_textured_pixel_for_column_return:
         strp [%rdb] %rdc
 
         ; checking the bounds of the loop (and increasing the iteration count)

@@ -9,8 +9,7 @@ TODO's:
     Add the missing functionality for the few specific commands missing it
     Add better debug support (maybe also some debug asserts to ensure safe assembly code)
     Add support for variable definitions (using @0x01 Testing which would be a label referring to the address; optional constant afterwards)
-    Add support for the missing argument types combination
-    
+    Add support for the missing argument types combination (added but untested)
 
 */
 
@@ -767,7 +766,7 @@ pub fn emulation_loop() {
     let (keyboard_sender, keyboard_receiver) = crossbeam::channel::bounded::<bool>(1);
     // the os gets to clean this one up on completion
     let _keyboard_thread = std::thread::spawn(move || {
-        crossterm::terminal::enable_raw_mode().unwrap();
+        //crossterm::terminal::enable_raw_mode().unwrap();
         keyboard::keyboard_handler(keyboard_receiver, registers_pointer);
     });
     
@@ -843,6 +842,7 @@ pub fn emulation_loop() {
             // incrementing the target time
             target += FRAME_TIME;
             
+            //\x1b[0m\x1b[84;1H
             debug_println!("\x1b[0m\x1b[84;1HDebug:  line/inst: {}/{:x}    registers: {:?}    ram (first 40bytes/20 addresses): {:?}     stack (first 40bytes/20 addresses): {:?}", registers[14], byte_code, registers, &ram[0..20], &stack[0..20]);
             //std::thread::sleep(std::time::Duration::from_micros(1));
             //std::thread::sleep(std::time::Duration::from_nanos(10));
